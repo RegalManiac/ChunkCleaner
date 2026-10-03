@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChunkCleaner — Карта чанков</title>
+    <style>
+        :root {
+            --bg-base: #0a0d14;
+            --bg-panel: rgba(15, 23, 42, 0.92);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(255, 255, 255, 0.18);
+            --text: #f1f5f9;
+            --text-dim: #94a3b8;
+            --color-kept: #22c55e;
+            --color-candidate: #3b82f6;
+            --color-deleted: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg-base);
+            color: var(--text);
+        }
+
+        #app {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        header {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            right: 12px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            background: var(--bg-panel);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            height: 48px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .brand-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            background: #38bdf8;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(148, 163, 184, 0.1);
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+        }
+
+        .status-badge.scanning {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .status-badge.cleaning {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .status-badge.scanning .pulse-dot,
+        .status-badge.cleaning .pulse-dot {
+            animation: blink 1.2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .world-box {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        select {
+            background: #0f172a;
+            color: #f8fafc;
+            border: 1px solid var(--border);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        select option {
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 4px;
+        }
+
+        select:hover {
+            border-color: var(--border-hover);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 11px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+            outline: none;
+            transition: all 0.15s;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--border-hover);
+        }
+
+        .btn-scan {
+            background: rgba(59, 130, 246, 0.12);
+            color: #60a5fa;
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+        .btn-scan:hover {
+            background: rgba(59, 130, 246, 0.22);
+        }
+
+        .btn-clean {
+            background: rgba(239, 68, 68, 0.12);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+        .btn-clean:hover {
+            background: rgba(239, 68, 68, 0.22);
+        }
+
+        .btn-stop {
+            background: rgba(245, 158, 11, 0.12);
+            color: #fbbf24;
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .btn-shutdown:hover {
+            color: #ef4444;
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        #map-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: grab;
+        }
+
+        #map-canvas:active {
+            cursor: grabbing;
+        }
+
+        .bottom-bar {
+            position: absolute;
+            bottom: 12px;
+            left: 12px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 8px 14px;
+            background: var(--bg-panel);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 12px;
+        }
+
+        .legend-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+
+        .legend-tag.hidden {
+            opacity: 0.3;
+            text-decoration: line-through;
+        }
+
+        .dot-marker {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+        }
+
+        .dot-del { background: var(--color-deleted); }
+        .dot-can { background: var(--color-candidate); }
+        .dot-kpt { background: var(--color-kept); }
+
+        .divider {
+            width: 1px;
+            height: 14px;
+            background: var(--border);
+        }
+
+        .speed-tag {
+            color: var(--text-dim);
+            font-family: monospace;
+        }
+
+        .info-bar {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: var(--bg-panel);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 12px;
+            font-family: monospace;
+            color: var(--text-dim);
+        }
+
+        .info-bar b {
+            color: var(--text);
+        }
+
+        .btn-ctrl {
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        #inspector {
+            position: absolute;
+            z-index: 105;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border-hover);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 11px;
+            pointer-events: none;
+            display: none;
+            flex-direction: column;
+            gap: 3px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        }
+
+        #shutdown-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 13, 20, 0.96);
+            z-index: 999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            text-align: center;
+        }
+
+        #shutdown-overlay h2 {
+            font-size: 20px;
+            color: #f87171;
+        }
+
+        #shutdown-overlay p {
+            color: var(--text-dim);
+            max-width: 420px;
+            line-height: 1.5;
+            font-size: 13px;
+        }
+
+    </style>
+</head>
+<body>
+<div id="app">
+    <header>
+        <div class="header-left">
+            <div class="brand">
+                <div class="brand-dot"></div>
+                <span>ChunkCleaner</span>
+            </div>
+
+            <div id="status-badge" class="status-badge">
+                <span class="pulse-dot"></span>
+                <span id="status-text">Ожидание</span>
+            </div>
+
+            <div class="world-box">
+                <label for="world-select">Мир:</label>
+                <select id="world-select">
+                    <option value="world">world</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <button class="btn-scan" id="btn-scan" title="Запуск сканирования без удаления">▶ Скан</button>
+            <button class="btn-clean" id="btn-clean" title="Запуск очистки">⚡ Очистка</button>
+            <button class="btn-stop" id="btn-stop" title="Остановить процесс">⏹ Стоп</button>
+            <button class="btn-shutdown" id="btn-shutdown" title="Отключить веб-сервер">Выкл Веб</button>
+        </div>
+    </header>
+
+    <canvas id="map-canvas"></canvas>
+
+    <div id="inspector">
+        <div id="insp-badge" style="font-weight:700;margin-bottom:2px;">Кандидат</div>
+        <div>Чанк: <b id="insp-chunk">0, 0</b></div>
+        <div>Блоки: <b id="insp-blocks">[0..15, 0..15]</b></div>
+        <div>Регион: <b id="insp-region">r.0.0</b></div>
+    </div>
+
+    <div class="bottom-bar">
+        <div class="legend-tag" id="tag-del" data-type="deleted" title="Кликните для скрытия/показа">
+            <span class="dot-marker dot-del"></span>
+            <span>Удалено: <b id="cnt-del">0</b></span>
+        </div>
+        <div class="legend-tag" id="tag-can" data-type="candidate" title="Кликните для скрытия/показа">
+            <span class="dot-marker dot-can"></span>
+            <span>Кандидаты: <b id="cnt-can">0</b></span>
+        </div>
+        <div class="legend-tag" id="tag-kpt" data-type="kept" title="Кликните для скрытия/показа">
+            <span class="dot-marker dot-kpt"></span>
+            <span>Сохранено: <b id="cnt-kpt">0</b></span>
+        </div>
+        <div class="divider"></div>
+        <div class="speed-tag" id="speed-indicator">0.0 рег/с</div>
+    </div>
+
+    <div class="info-bar">
+        <span>X: <b id="val-x">0</b></span>
+        <span>Z: <b id="val-z">0</b></span>
+        <span id="val-scale">1px = 16 бл</span>
+        <button class="btn-ctrl" id="btn-in" title="Приблизить">+</button>
+        <button class="btn-ctrl" id="btn-out" title="Отдалить">−</button>
+        <button class="btn-ctrl" id="btn-center" title="К центру (0, 0)">⌖</button>
+        <button class="btn-ctrl" id="btn-fit" title="Подогнать под все регионы" style="width:auto;padding:0 6px;font-size:11px;">Fit</button>
+    </div>
+
+    <div id="shutdown-overlay">
+        <h2>Веб-интерфейс остановлен</h2>
+        <p>Веб-сервер отключен. Для повторного запуска введите в игре: <code>/cclean web start</code></p>
+    </div>
+</div>
+
+<script>
+    const STATE_EMPTY = 0;
+    const STATE_KEPT = 1;
+    const STATE_CANDIDATE = 2;
+    const STATE_DELETED = 3;
+
+    const COLOR_PALETTE = {
+        [STATE_EMPTY]:     [25, 33, 50, 100],
+        [STATE_KEPT]:      [34, 197, 94, 255],
+        [STATE_CANDIDATE]: [59, 130, 246, 255],
+        [STATE_DELETED]:   [239, 68, 68, 255]
+    };
+
+    const canvas = document.getElementById('map-canvas');
+    const ctx = canvas.getContext('2d');
+
+    let viewX = 0;
+    let viewZ = 0;
+
+    let zoom = 8.0;
+    const MIN_ZOOM = 0.000005;
+    const MAX_ZOOM = 64.0;
+
+    const regions = new Map();
+    let currentWorld = "world";
+
+    const visibility = {
+        kept: true,
+        candidate: true,
+        deleted: true
+    };
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        requestRender();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function updateRegionTexture(reg) {
+        if (!reg.raw) return;
+
+        if (!reg.canvas) {
+            reg.canvas = document.createElement('canvas');
+            reg.canvas.width = 32;
+            reg.canvas.height = 32;
+            reg.ctx = reg.canvas.getContext('2d');
+            reg.imageData = reg.ctx.createImageData(32, 32);
+        }
+
+        const data = reg.imageData.data;
+        const raw = reg.raw;
+
+        for (let i = 0; i < 1024; i++) {
+            let state = raw[i];
+            if (state === STATE_KEPT && !visibility.kept) state = STATE_EMPTY;
+            if (state === STATE_CANDIDATE && !visibility.candidate) state = STATE_EMPTY;
+            if (state === STATE_DELETED && !visibility.deleted) state = STATE_EMPTY;
+
+            const color = COLOR_PALETTE[state] || COLOR_PALETTE[STATE_EMPTY];
+            const p = i * 4;
+            data[p]     = color[0];
+            data[p + 1] = color[1];
+            data[p + 2] = color[2];
+            data[p + 3] = color[3];
+        }
+
+        reg.ctx.putImageData(reg.imageData, 0, 0);
+    }
+
+    function computeDominantColor(reg) {
+        if (reg.d > 0 && visibility.deleted) return "#ef4444";
+        if (reg.c > 0 && visibility.candidate) return "#3b82f6";
+        if (reg.k > 0 && visibility.kept) return "#22c55e";
+        return "#1e293b";
+    }
+
+    function rebuildAllTextures() {
+        for (const reg of regions.values()) {
+            if (reg.raw) updateRegionTexture(reg);
+            reg.dominantColor = computeDominantColor(reg);
+        }
+        requestRender();
+    }
+
+    let renderRequested = false;
+    function requestRender() {
+        if (!renderRequested) {
+            renderRequested = true;
+            requestAnimationFrame(render);
+        }
+    }
+
+    function formatBlockCoord(b) {
+        const abs = Math.abs(b);
+        if (abs >= 1000000) return (b / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1) + "M";
+        if (abs >= 1000) return (b / 1000).toFixed(abs % 1000 === 0 ? 0 : 1) + "k";
+        return String(b);
+    }
+
+    function render() {
+        renderRequested = false;
+        const w = canvas.width;
+        const h = canvas.height;
+        const centerX = w / 2;
+        const centerY = h / 2;
+
+        ctx.fillStyle = "#0a0d14";
+        ctx.fillRect(0, 0, w, h);
+
+        const minChunkX = viewX - centerX / zoom;
+        const maxChunkX = viewX + centerX / zoom;
+        const minChunkZ = viewZ - centerY / zoom;
+        const maxChunkZ = viewZ + centerY / zoom;
+
+        const minRegX = Math.floor(minChunkX / 32);
+        const maxRegX = Math.ceil(maxChunkX / 32);
+        const minRegZ = Math.floor(minChunkZ / 32);
+        const maxRegZ = Math.ceil(maxChunkZ / 32);
+
+        const idealChunksPerStep = 80 / zoom;
+        let stepChunks = 1;
+        while (stepChunks < idealChunksPerStep) {
+            stepChunks *= 2;
+        }
+
+        const firstGridChunkX = Math.floor(minChunkX / stepChunks) * stepChunks;
+        const firstGridChunkZ = Math.floor(minChunkZ / stepChunks) * stepChunks;
+
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
+        ctx.fillStyle = "rgba(148, 163, 184, 0.4)";
+        ctx.font = "10px monospace";
+
+        ctx.beginPath();
+        for (let cx = firstGridChunkX; cx <= maxChunkX; cx += stepChunks) {
+            const sx = Math.round(centerX + (cx - viewX) * zoom);
+            if (sx >= 0 && sx <= w) {
+                ctx.moveTo(sx, 0);
+                ctx.lineTo(sx, h);
+            }
+        }
+        for (let cz = firstGridChunkZ; cz <= maxChunkZ; cz += stepChunks) {
+            const sz = Math.round(centerY + (cz - viewZ) * zoom);
+            if (sz >= 0 && sz <= h) {
+                ctx.moveTo(0, sz);
+                ctx.lineTo(w, sz);
+            }
+        }
+        ctx.stroke();
+
+        for (let cx = firstGridChunkX; cx <= maxChunkX; cx += stepChunks) {
+            const sx = Math.round(centerX + (cx - viewX) * zoom);
+            if (sx >= 50 && sx <= w - 50) {
+                const blockCoord = cx * 16;
+                if (blockCoord !== 0) {
+                    ctx.fillText(formatBlockCoord(blockCoord), sx + 4, 60);
+                }
+            }
+        }
+        for (let cz = firstGridChunkZ; cz <= maxChunkZ; cz += stepChunks) {
+            const sz = Math.round(centerY + (cz - viewZ) * zoom);
+            if (sz >= 80 && sz <= h - 40) {
+                const blockCoord = cz * 16;
+                if (blockCoord !== 0) {
+                    ctx.fillText(formatBlockCoord(blockCoord), 14, sz - 4);
+                }
+            }
+        }
+
+        const WB_BLOCKS = 30000000;
+        const WB_CHUNKS = WB_BLOCKS / 16;
+        const wbMinX = centerX + (-WB_CHUNKS - viewX) * zoom;
+        const wbMaxX = centerX + (WB_CHUNKS - viewX) * zoom;
+        const wbMinZ = centerY + (-WB_CHUNKS - viewZ) * zoom;
+        const wbMaxZ = centerY + (WB_CHUNKS - viewZ) * zoom;
+
+        const visMinX = Math.max(0, wbMinX);
+        const visMaxX = Math.min(w, wbMaxX);
+        const visMinZ = Math.max(0, wbMinZ);
+        const visMaxZ = Math.min(h, wbMaxZ);
+
+        if (visMinX <= visMaxX && visMinZ <= visMaxZ) {
+            ctx.save();
+            ctx.strokeStyle = "rgba(239, 68, 68, 0.45)";
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([6, 6]);
+            ctx.beginPath();
+
+            if (wbMinX >= 0 && wbMinX <= w) {
+                ctx.moveTo(wbMinX, visMinZ);
+                ctx.lineTo(wbMinX, visMaxZ);
+            }
+            if (wbMaxX >= 0 && wbMaxX <= w) {
+                ctx.moveTo(wbMaxX, visMinZ);
+                ctx.lineTo(wbMaxX, visMaxZ);
+            }
+            if (wbMinZ >= 0 && wbMinZ <= h) {
+                ctx.moveTo(visMinX, wbMinZ);
+                ctx.lineTo(visMaxX, wbMinZ);
+            }
+            if (wbMaxZ >= 0 && wbMaxZ <= h) {
+                ctx.moveTo(visMinX, wbMaxZ);
+                ctx.lineTo(visMaxX, wbMaxZ);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.fillStyle = "rgba(239, 68, 68, 0.6)";
+            if (wbMinX > 0 && wbMinX < w - 120) {
+                ctx.fillText("Граница мира -30M", wbMinX + 4, Math.min(h - 30, visMaxZ - 10));
+            }
+            if (wbMaxX > 120 && wbMaxX < w) {
+                ctx.fillText("Граница мира +30M", wbMaxX - 110, Math.min(h - 30, visMaxZ - 10));
+            }
+        }
+
+        const originX = Math.round(centerX - viewX * zoom);
+        const originZ = Math.round(centerY - viewZ * zoom);
+
+        ctx.strokeStyle = "rgba(56, 189, 248, 0.35)";
+        ctx.lineWidth = 1;
+        if (originX >= 0 && originX <= w) {
+            ctx.beginPath();
+            ctx.moveTo(originX, 0);
+            ctx.lineTo(originX, h);
+            ctx.stroke();
+            ctx.fillStyle = "#38bdf8";
+            ctx.fillText("X: 0", originX + 4, 75);
+        }
+        if (originZ >= 0 && originZ <= h) {
+            ctx.beginPath();
+            ctx.moveTo(0, originZ);
+            ctx.lineTo(w, originZ);
+            ctx.stroke();
+            ctx.fillStyle = "#38bdf8";
+            ctx.fillText("Z: 0", 14, originZ - 4);
+        }
+
+        ctx.imageSmoothingEnabled = false;
+        const regionPixelSize = 32 * zoom;
+
+        for (const reg of regions.values()) {
+            if (reg.rx < minRegX || reg.rx > maxRegX || reg.rz < minRegZ || reg.rz > maxRegZ) {
+                continue;
+            }
+
+            const screenX = centerX + ((reg.rx * 32) - viewX) * zoom;
+            const screenZ = centerY + ((reg.rz * 32) - viewZ) * zoom;
+
+            if (regionPixelSize >= 2) {
+                if (reg.canvas) {
+                    ctx.drawImage(reg.canvas, screenX, screenZ, regionPixelSize, regionPixelSize);
+                } else {
+                    ctx.fillStyle = reg.dominantColor || "#1e293b";
+                    ctx.fillRect(screenX, screenZ, regionPixelSize, regionPixelSize);
+                }
+
+                if (regionPixelSize >= 12) {
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+                    ctx.strokeRect(screenX, screenZ, regionPixelSize, regionPixelSize);
+                }
+
+                if (regionPixelSize >= 48) {
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+                    ctx.fillText(`r.${reg.rx}.${reg.rz}`, screenX + 4, screenZ + 12);
+                }
+            } else {
+                ctx.fillStyle = reg.dominantColor || "#22c55e";
+                ctx.fillRect(screenX, screenZ, Math.max(1.5, regionPixelSize), Math.max(1.5, regionPixelSize));
+            }
+        }
+    }
+
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartZ = 0;
+    let mouseChunkX = null;
+    let mouseChunkZ = null;
+    let isInspectorActive = false;
+
+    canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 0) {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartZ = e.clientY;
+            if (isInspectorActive) {
+                inspector.style.display = 'none';
+                isInspectorActive = false;
+            }
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            scheduleCheckDetailedRegions();
+        }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            const dx = e.clientX - dragStartX;
+            const dz = e.clientY - dragStartZ;
+            viewX -= dx / zoom;
+            viewZ -= dz / zoom;
+            dragStartX = e.clientX;
+            dragStartZ = e.clientY;
+            requestRender();
+            return;
+        }
+
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const chunkX = Math.floor(viewX + (e.clientX - centerX) / zoom);
+        const chunkZ = Math.floor(viewZ + (e.clientY - centerY) / zoom);
+
+        if (chunkX !== mouseChunkX || chunkZ !== mouseChunkZ) {
+            mouseChunkX = chunkX;
+            mouseChunkZ = chunkZ;
+            document.getElementById('val-x').textContent = formatBlockCoord(chunkX * 16);
+            document.getElementById('val-z').textContent = formatBlockCoord(chunkZ * 16);
+        }
+
+        handleInspector(e.clientX, e.clientY, chunkX, chunkZ);
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.3 : 0.76;
+        applyZoom(factor, e.clientX, e.clientY);
+    }, { passive: false });
+
+    function updateScaleIndicator() {
+        const blocksPerPixel = 16 / zoom;
+        let scaleText;
+        if (blocksPerPixel >= 1000000) {
+            scaleText = `1px = ${(blocksPerPixel / 1000000).toFixed(1)}M бл`;
+        } else if (blocksPerPixel >= 1000) {
+            scaleText = `1px = ${(blocksPerPixel / 1000).toFixed(1)}k бл`;
+        } else if (blocksPerPixel >= 1) {
+            scaleText = `1px = ${Math.round(blocksPerPixel)} бл`;
+        } else {
+            scaleText = `1 чанк = ${Math.round(zoom)}px`;
+        }
+        document.getElementById('val-scale').textContent = scaleText;
+    }
+
+    function setView(newX, newZ, newZoom) {
+        viewX = newX;
+        viewZ = newZ;
+        if (newZoom !== undefined) {
+            zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newZoom));
+        }
+        updateScaleIndicator();
+        requestRender();
+        scheduleCheckDetailedRegions();
+    }
+
+    function fitToRegions() {
+        if (regions.size === 0) {
+            setView(0, 0, 8);
+            return;
+        }
+
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        for (const r of regions.values()) {
+            if (r.rx < minX) minX = r.rx;
+            if (r.rx > maxX) maxX = r.rx;
+            if (r.rz < minZ) minZ = r.rz;
+            if (r.rz > maxZ) maxZ = r.rz;
+        }
+
+        const totalChunksX = Math.max(32, (maxX - minX + 1) * 32);
+        const totalChunksZ = Math.max(32, (maxZ - minZ + 1) * 32);
+        const centerX = (minX + maxX + 1) * 16;
+        const centerZ = (minZ + maxZ + 1) * 16;
+
+        const fitZoomX = (canvas.width * 0.82) / totalChunksX;
+        const fitZoomZ = (canvas.height * 0.82) / totalChunksZ;
+        const fitZoom = Math.min(fitZoomX, fitZoomZ);
+
+        setView(centerX, centerZ, fitZoom);
+    }
+
+    function applyZoom(factor, focalX = canvas.width / 2, focalZ = canvas.height / 2) {
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * factor));
+        if (Math.abs(newZoom - zoom) < 1e-12) return;
+
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const mouseChunkX = viewX + (focalX - centerX) / zoom;
+        const mouseChunkZ = viewZ + (focalZ - centerY) / zoom;
+
+        zoom = newZoom;
+        viewX = mouseChunkX - (focalX - centerX) / zoom;
+        viewZ = mouseChunkZ - (focalZ - centerY) / zoom;
+
+        updateScaleIndicator();
+        requestRender();
+        scheduleCheckDetailedRegions();
+    }
+
+    document.getElementById('btn-in').onclick = () => applyZoom(1.4);
+    document.getElementById('btn-out').onclick = () => applyZoom(0.7);
+    document.getElementById('btn-center').onclick = () => setView(0, 0, 8);
+    document.getElementById('btn-fit').onclick = () => fitToRegions();
+
+    const inspector = document.getElementById('inspector');
+    const inspBadge = document.getElementById('insp-badge');
+    const inspChunk = document.getElementById('insp-chunk');
+    const inspBlocks = document.getElementById('insp-blocks');
+    const inspRegion = document.getElementById('insp-region');
+
+    function handleInspector(mouseX, mouseY, chunkX, chunkZ) {
+        const rx = Math.floor(chunkX / 32);
+        const rz = Math.floor(chunkZ / 32);
+        const reg = regions.get(`${rx},${rz}`);
+
+        if (!reg || !reg.raw) {
+            if (isInspectorActive) {
+                inspector.style.display = 'none';
+                isInspectorActive = false;
+            }
+            return;
+        }
+
+        const localX = ((chunkX % 32) + 32) % 32;
+        const localZ = ((chunkZ % 32) + 32) % 32;
+        const localIndex = (localZ << 5) | localX;
+        const state = reg.raw[localIndex];
+
+        if (state === STATE_EMPTY) {
+            if (isInspectorActive) {
+                inspector.style.display = 'none';
+                isInspectorActive = false;
+            }
+            return;
+        }
+
+        let label = "Пустой", color = "#94a3b8";
+        switch (state) {
+            case STATE_KEPT:      label = "Сохранен (Живой)"; color = "#22c55e"; break;
+            case STATE_CANDIDATE: label = "Кандидат на удаление"; color = "#3b82f6"; break;
+            case STATE_DELETED:   label = "Удален"; color = "#ef4444"; break;
+        }
+
+        inspBadge.textContent = label;
+        inspBadge.style.color = color;
+        inspChunk.textContent = `${chunkX}, ${chunkZ}`;
+        inspBlocks.textContent = `[${chunkX * 16}..${chunkX * 16 + 15}, ${chunkZ * 16}..${chunkZ * 16 + 15}]`;
+        inspRegion.textContent = `r.${rx}.${rz} (${localX}, ${localZ})`;
+
+        inspector.style.display = 'flex';
+        isInspectorActive = true;
+        inspector.style.left = `${Math.min(window.innerWidth - 200, mouseX + 14)}px`;
+        inspector.style.top = `${Math.min(window.innerHeight - 120, mouseY + 14)}px`;
+    }
+
+    document.querySelectorAll('.legend-tag').forEach(tag => {
+        tag.addEventListener('click', () => {
+            const type = tag.getAttribute('data-type');
+            visibility[type] = !visibility[type];
+            tag.classList.toggle('hidden', !visibility[type]);
+            rebuildAllTextures();
+        });
+    });
+
+    function decodeBase64ToUint8(b64) {
+        const bin = atob(b64);
+        const bytes = new Uint8Array(1024);
+        for (let i = 0; i < 1024; i++) {
+            bytes[i] = bin.charCodeAt(i);
+        }
+        return bytes;
+    }
+
+    function processRegionPayload(item) {
+        const rx = Array.isArray(item) ? item[0] : item.rx;
+        const rz = Array.isArray(item) ? item[1] : item.rz;
+        const k = Array.isArray(item) ? item[2] : (item.k || 0);
+        const c = Array.isArray(item) ? item[3] : (item.c || 0);
+        const d = Array.isArray(item) ? item[4] : (item.d || 0);
+
+        const key = `${rx},${rz}`;
+        let reg = regions.get(key);
+        if (!reg) {
+            reg = { rx, rz, k, c, d };
+            regions.set(key, reg);
+        } else {
+            reg.k = k; reg.c = c; reg.d = d;
+        }
+
+        reg.dominantColor = computeDominantColor(reg);
+
+        if (item.b64) {
+            reg.raw = decodeBase64ToUint8(item.b64);
+            updateRegionTexture(reg);
+        }
+
+        requestRender();
+    }
+
+    let initialFitDone = false;
+    async function loadInitialWorldData() {
+        try {
+            const res = await fetch(`/api/regions?world=${currentWorld}`);
+            const data = await res.json();
+            if (data.regions) {
+                for (const r of data.regions) {
+                    processRegionPayload(r);
+                }
+                if (!initialFitDone && data.regions.length > 0) {
+                    initialFitDone = true;
+                    fitToRegions();
+                }
+            }
+            requestRender();
+        } catch (e) {
+            console.error("Failed to load regions", e);
+        }
+    }
+
+    const pendingRequests = new Set();
+    let checkRegionsTimer = null;
+
+    function scheduleCheckDetailedRegions() {
+        if (checkRegionsTimer) clearTimeout(checkRegionsTimer);
+        checkRegionsTimer = setTimeout(() => {
+            checkAndLoadDetailedRegions();
+        }, 120);
+    }
+
+    async function checkAndLoadDetailedRegions() {
+        if (32 * zoom < 20) return;
+
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const minRegX = Math.floor((viewX - centerX / zoom) / 32);
+        const maxRegX = Math.ceil((viewX + centerX / zoom) / 32);
+        const minRegZ = Math.floor((viewZ - centerY / zoom) / 32);
+        const maxRegZ = Math.ceil((viewZ + centerY / zoom) / 32);
+
+        for (const reg of regions.values()) {
+            if (reg.rx >= minRegX && reg.rx <= maxRegX && reg.rz >= minRegZ && reg.rz <= maxRegZ) {
+                if (!reg.raw && !pendingRequests.has(`${reg.rx},${reg.rz}`)) {
+                    const key = `${reg.rx},${reg.rz}`;
+                    pendingRequests.add(key);
+                    fetch(`/api/region-data?world=${currentWorld}&rx=${reg.rx}&rz=${reg.rz}`)
+                        .then(r => r.json())
+                        .then(data => {
+                            pendingRequests.delete(key);
+                            processRegionPayload(data);
+                        })
+                        .catch(() => pendingRequests.delete(key));
+                }
+            }
+        }
+    }
+
+    function connectSSE() {
+        const evtSource = new EventSource('/api/stream');
+
+        evtSource.addEventListener('status', (e) => {
+            const data = JSON.parse(e.data);
+            updateUIStatus(data);
+        });
+
+        evtSource.addEventListener('progress', (e) => {
+            const data = JSON.parse(e.data);
+            document.getElementById('speed-indicator').textContent = `${data.speed} рег/с`;
+            if (data.kept !== undefined) document.getElementById('cnt-kpt').textContent = data.kept;
+            if (data.candidates !== undefined) document.getElementById('cnt-can').textContent = data.candidates;
+            if (data.deleted !== undefined) document.getElementById('cnt-del').textContent = data.deleted;
+        });
+
+        evtSource.addEventListener('region', (e) => {
+            const item = JSON.parse(e.data);
+            if (item.world === currentWorld) {
+                processRegionPayload(item);
+            }
+        });
+
+        evtSource.onerror = () => {
+            setTimeout(() => {
+                if (evtSource.readyState === EventSource.CLOSED) {
+                    connectSSE();
+                }
+            }, 3000);
+        };
+    }
+
+    function updateUIStatus(data) {
+        const badge = document.getElementById('status-badge');
+        const text = document.getElementById('status-text');
+
+        badge.className = "status-badge";
+        if (data.state === "SCANNING") {
+            badge.classList.add("scanning");
+            text.textContent = "Сканирование...";
+        } else if (data.state === "CLEANING") {
+            badge.classList.add("cleaning");
+            text.textContent = "Очистка...";
+        } else {
+            text.textContent = "Ожидание";
+            document.getElementById('speed-indicator').textContent = "0.0 рег/с";
+        }
+
+        document.getElementById('cnt-kpt').textContent = data.totalKept || 0;
+        document.getElementById('cnt-can').textContent = data.totalCandidates || 0;
+        document.getElementById('cnt-del').textContent = data.totalDeleted || 0;
+
+        if (data.worlds && data.worlds.length > 0) {
+            const select = document.getElementById('world-select');
+            const currentSelected = select.value;
+            select.innerHTML = '';
+            data.worlds.forEach(w => {
+                const opt = document.createElement('option');
+                opt.value = w;
+                opt.textContent = w;
+                if (w === currentSelected) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+    }
+
+    document.getElementById('world-select').addEventListener('change', (e) => {
+        currentWorld = e.target.value;
+        regions.clear();
+        initialFitDone = false;
+        loadInitialWorldData();
+        requestRender();
+    });
+
+    async function sendAction(action) {
+        try {
+            await fetch('/api/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+            if (action === 'shutdown') {
+                document.getElementById('shutdown-overlay').style.display = 'flex';
+            }
+        } catch (e) {
+            alert("Ошибка выполнения: " + e.message);
+        }
+    }
+
+    document.getElementById('btn-scan').onclick = () => sendAction('scan');
+    document.getElementById('btn-clean').onclick = () => {
+        if (confirm("Запустить удаление чанков?")) {
+            sendAction('start');
+        }
+    };
+    document.getElementById('btn-stop').onclick = () => sendAction('stop');
+    document.getElementById('btn-shutdown').onclick = () => {
+        if (confirm("Отключить локальный веб-сервер карты?")) {
+            sendAction('shutdown');
+        }
+    };
+
+    resizeCanvas();
+    connectSSE();
+    loadInitialWorldData();
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+name: ChunkCleaner
+version: 2.0
+main: com.August.chunkcleaner.ChunkCleanerPlugin
+api-version: '26.2'
+load: STARTUP
+folia-supported: true
+commands:
+  chunkcleaner:
+    description: Chunk cleanup management
+    aliases: [cclean]
+    permission: chunkcleaner.admin

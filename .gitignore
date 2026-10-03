@@ -1,0 +1,29 @@
+# Gradle
+.gradle/
+build/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Visual Studio Code / Eclipse
+.vscode/
+.settings/
+.classpath
+.project
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Keep Gradle Wrapper intact
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties

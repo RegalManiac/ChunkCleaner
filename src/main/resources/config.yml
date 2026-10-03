@@ -1,0 +1,48 @@
+# ==============================================================================
+# ChunkCleaner Configuration
+# ==============================================================================
+
+# Язык / Language:
+# "auto" - автоматическое определение / auto-detect
+# "ru"   - принудительно русский язык / force Russian
+# "en"   - принудительно английский язык / force English
+language: "auto"
+
+# Минимальное время нахождения игрока в чанке (в тиках).
+# Minimum player inhabited time in chunk (in ticks).
+min_inhabited_time: 20
+
+# Режим очистки / Cleanup mode:
+# RUNTIME - очистка при работающем сервере
+#           (async cleanup while server is running)
+# STARTUP - синхронная очистка файлов регионов при перезапуске сервера
+#           (synchronous cleanup before worlds are loaded)
+cleanup_mode: "RUNTIME"
+
+# Задержка между обработкой файлов регионов в миллисекундах.
+# Delay between processing region files in milliseconds.
+# Рекомендуется 5-15 мс для больших миров.
+# Recommended 5-15 ms for huge worlds.
+region_delay_ms: 10
+
+# Отправка периодических отчетов о прогрессе в консоль и чат (true/false).
+# Enable periodic progress feedback in console and chat (true/false).
+progress_feedback_enabled: true
+
+# Интервал отправки отчета о прогрессе (в секундах).
+# Progress feedback interval (in seconds).
+progress_feedback_seconds: 20
+
+web:
+  # Порт веб-сервера / Web server port
+  port: 8765
+  # "127.0.0.1" - сокет открыт ТОЛЬКО локально / socket only listens on localhost
+  # "0.0.0.0"   - защищен 32-значным токеном с защитой от перебора и баном по IP / protected by 32-char crypto token and anti-brute-force IP ban
+  host: "127.0.0.1"
+  # Автоматическое отключение при отсутствии открытых вкладок (в минутах, 0 = не отключать)
+  # Auto-shutdown web server when no browser tabs are active (in minutes, 0 = disable)
+  idle_timeout_minutes: 15
+  # Автоматически запускать веб-интерфейс при /cclean scan
+  # Automatically launch web server when /cclean scan
+  auto_start_on_scan: false
+
